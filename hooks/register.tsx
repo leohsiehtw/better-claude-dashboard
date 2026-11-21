@@ -17,6 +17,7 @@ import type {
   DashLayout,
   DashLive,
   DashLogEntry,
+  DashSettings,
   DashTask,
   DashUsage,
   DashWindow,
@@ -25,6 +26,7 @@ import { LOCALE_LABEL, detectLocale, isLocale, lead, nextLocale, strings, toLoca
 import type { Strings } from './i18n'
 import {
   addTask,
+  advancePlan,
   bgTaskOf,
   clip,
   emptyLive,
@@ -33,12 +35,15 @@ import {
   field,
   nowLabel,
   reconcileTasks,
+  sessionShare,
   setNote,
   startRun,
   turnEnded,
   turnStarted,
 } from './live'
-import { MASCOT_SVG, MOOD_MS, moodFor, spin } from './mascot'
+import { COMPANIONS_SVG, COMPANION_CAP, MASCOT_SVG, MOOD_MS, moodFor, spin } from './mascot'
+import { DEFAULT_SETTINGS, applyArgs, cycleSetting, gridColumns, summary, toSettings } from './settings'
+import type { SettingKey } from './settings'
 
 const PANE = 'better-claude-dashboard'
 const CARD_IDS = ['now', 'session', 'context', 'turn', 'permissions', 'agents', 'log']
@@ -61,6 +66,9 @@ const AGENT_OUT_CAP = 20
 const ARM_MS = 4_000
 const RUNNING_SHOWN = 6
 const NO_ARM: DashArm = { target: '', at: 0 }
+const GRID_TILE_ROWS = 8
+const DOING_CLIP = 28
+const COMMAND_HINT = '[show | companions on|off | grid auto|1|2 | tokens both|context|plan | reset]'
 
 const FILE_TOOLS: readonly string[] = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit']
 const SHELL_TOOLS: readonly string[] = ['Bash', 'PowerShell']
@@ -84,7 +92,7 @@ function emptyActivity(sessionStartedAt: number): DashActivity {
 
 // Change a shape tag whenever that value's type in ../types changes.
 const usage = atom({ plugin: 'better-claude-dashboard', key: 'usage' } as const, EMPTY_USAGE, {
-  shape: 'usage-5',
+  shape: 'usage-6',
 })
 const agents = atom({ plugin: 'better-claude-dashboard', key: 'agents' } as const, [], {
   shape: 'agents-1',
@@ -107,6 +115,11 @@ const armAtom = atom({ plugin: 'better-claude-dashboard', key: 'arm' } as const,
 })
 const langAtom = atom({ plugin: 'better-claude-dashboard', key: 'lang' } as const, '')
 const LANG_KEY = 'lang'
+const settingsAtom = atom({ plugin: 'better-claude-dashboard', key: 'settings' } as const, DEFAULT_SETTINGS, {
+  shape: 'settings-1',
+})
+const settingsOpenAtom = atom({ plugin: 'better-claude-dashboard', key: 'settingsOpen' } as const, false)
+const SETTINGS_KEY = 'settings'
 
 // Timer bookkeeping and not-yet-flushed deltas only (never drawn from); a reload drops them.
 let ticker: Timer | undefined
@@ -131,6 +144,7 @@ export const register: Register = on => {
       undefined,
     )
     await attempt($, () => initLang($), undefined)
+    await attempt($, () => initSettings($), undefined)
     ticker = $.clock.every(TICK_MS, () => void tick($))
     void tick($)
     void openPane($)
@@ -139,7 +153,8 @@ export const register: Register = on => {
       () =>
         $.command.register({
           name: 'better-claude-dashboard',
-          description: 'Open the usage dashboard pane: plan limits, context, subagents',
+          description: 'Open the usage dashboard pane, or change its settings (helpers, grid, token display)',
+          argumentHint: COMMAND_HINT,
           immediate: true,
         }),
       undefined,
@@ -148,7 +163,18 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'better-claude-dashboard' }, async $ => {
+  on('command.run', { command: 'better-claude-dashboard' }, async ($, e) => {
+    const cur = await read($, settingsAtom)
+    const S = strings(await read($, langAtom))
+    const parsed = applyArgs(cur, e.args)
+    if (parsed.mode === 'show') return { text: S.settingsNow(summary(cur)) }
+    if (parsed.mode === 'help') return { text: S.settingsUsage }
+    if (parsed.mode === 'error') return { text: `${S.settingsBad(parsed.bad ?? '')} · ${S.settingsUsage}` }
+    if (parsed.mode === 'set') {
+      await saveSettings($, parsed.settings)
+
+      return { text: S.settingsNow(summary(parsed.settings)) }
+    }
     const opened = await $.ui.open({ id: PANE, title: TITLE })
 
     return {
@@ -176,6 +202,7 @@ export const register: Register = on => {
       await attempt($, () => update($, eventLog, () => []), [])
       await attempt($, () => update($, liveAtom, () => emptyLive()), emptyLive())
       await attempt($, () => update($, armAtom, () => NO_ARM), NO_ARM)
+      await attempt($, () => update($, usage, cur => withoutPlan(cur)), EMPTY_USAGE)
     }
 
     return next(e)
@@ -318,6 +345,10 @@ export const register: Register = on => {
         : undefined)
     const loc = toLocale(await read($, langAtom))
     const S = strings(loc)
+    const settings = await read($, settingsAtom)
+    const settingsOpen = await read($, settingsOpenAtom)
+    const five = snap.rateLimits.find(w => w.kind === 'five_hour')
+    const convShare = sessionShare(snap.plan, five)
     const liveNow = await read($, liveAtom)
     const liveTasks = liveNow.tasks.filter(t => t.endedAt === undefined).length
     const activeText = live.length === 0 ? S.noSubagentsActive : S.subagentsActive(live.length)
@@ -333,7 +364,8 @@ export const register: Register = on => {
       const glance = snap.rateLimits
         .filter(w => w.kind === 'five_hour' || w.kind === 'seven_day')
         .map(w => `${w.kind === 'five_hour' ? '5h' : 'wk'} ${w.percentUsed}%`)
-      if (ctxPercent !== undefined) glance.push(`ctx ${ctxPercent}%`)
+      if (settings.tokens !== 'context' && convShare !== undefined) glance.push(`sess ≈+${convShare}%`)
+      if (ctxPercent !== undefined && settings.tokens !== 'plan') glance.push(`ctx ${ctxPercent}%`)
 
       return (
         <Box flexDirection="column">
@@ -367,6 +399,12 @@ export const register: Register = on => {
             inTotal > 0 ? Math.round((tk.cacheRead / inTotal) * 100) : undefined,
           )
         : undefined
+    const convParts = [
+      ctx.tokens !== undefined && settings.tokens !== 'plan' ? S.convCtx(ctxPct) : '',
+      convShare !== undefined && settings.tokens !== 'context' ? S.convPlan(convShare.toFixed(1)) : '',
+    ]
+      .filter(part => part !== '')
+      .join(' · ')
     const statLine = [
       snap.turns === undefined ? undefined : S.turns(snap.turns),
       snap.costUsd === undefined ? undefined : `$${snap.costUsd.toFixed(2)}`,
@@ -474,15 +512,40 @@ export const register: Register = on => {
       </Box>
     ))
     const artSource = MASCOT_SVG(moodFor(now, isBusy), Math.floor((now % MOOD_MS) / 1000))
+    const busyAgents = live.filter(row => row.status !== 'idle').length
+    const helpers = settings.companions ? Math.min(busyAgents, COMPANION_CAP) : 0
     const art =
       e.surface === 'desktop'
         ? (() => {
             const { Svg } = $.ui.resolve(e)
 
-            return <Svg source={artSource} alt={S.mascotAlt} width={216} height={148} />
+            return (
+              <Box flexDirection="column" alignItems="center">
+                <Svg source={artSource} alt={S.mascotAlt} width={216} height={148} />
+                {helpers > 0 && (
+                  <Svg
+                    source={COMPANIONS_SVG(helpers, Math.floor((now % 6000) / 1000))}
+                    alt={S.companionsAlt(busyAgents)}
+                    width={216}
+                    height={48}
+                  />
+                )}
+                {busyAgents > COMPANION_CAP && helpers > 0 && (
+                  <Text dimColor>{`+${busyAgents - COMPANION_CAP}`}</Text>
+                )}
+              </Box>
+            )
           })()
         : null
 
+    const settingKeys: SettingKey[] = ['companions', 'grid', 'tokens']
+    const optLabel = (key: SettingKey): string =>
+      key === 'companions' ? S.optCompanions : key === 'grid' ? S.optGrid : S.optTokens
+    const optValue = (key: SettingKey): string => {
+      const raw = key === 'companions' ? (settings.companions ? 'on' : 'off') : settings[key]
+
+      return S.values[raw] ?? raw
+    }
     const card = (id: string, title: string, color: string, hint: JSX.Element | null, body: JSX.Element): JSX.Element => {
       const isFolded = collapsedIds.has(id)
       const at = order.indexOf(id)
@@ -504,6 +567,50 @@ export const register: Register = on => {
             </Box>
           </Box>
           {!isFolded && body}
+        </Box>
+      )
+    }
+    const cols = gridColumns(settings.grid, e.props.bodyColumns, e.viewport?.columns)
+    const doingOf = (id: string): string | undefined => {
+      const r = [...runs].reverse().find(x => x.agentId === id)
+
+      return r === undefined ? undefined : `${spin(now)} ${shortTool(r.tool)} ${clip(r.label, DOING_CLIP)}`
+    }
+    const agentTile = (row: DashAgent, isGrid: boolean): JSX.Element => {
+      const used = act.agentOut[row.id]
+      const isLive = row.endedAt === undefined
+      const isBad = row.status === 'failed' || row.status === 'killed'
+      const doing = isLive ? doingOf(row.id) : undefined
+
+      return (
+        <Box
+          key={row.id}
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={isLive ? AMBER : isBad ? RED : TRACK}
+          paddingX={1}
+          {...(isGrid ? { width: '50%' as const, flexShrink: 1, minHeight: GRID_TILE_ROWS } : {})}
+        >
+          <Text bold wrap="wrap">
+            {row.name}
+          </Text>
+          <Text dimColor wrap="wrap">
+            {row.description === '' || row.description === row.name ? row.type : `${row.type} · ${row.description}`}
+          </Text>
+          <Text color={isLive ? AMBER : isBad ? RED : GREEN} wrap="wrap">
+            {`${isLive ? `${spin(now)} ` : isBad ? '✗ ' : '✓ '}${fmtElapsed((row.endedAt ?? now) - row.startedAt)}`}
+            <Text dimColor>{` · ${word(S, row.status)}`}</Text>
+          </Text>
+          {doing !== undefined && (
+            <Text dimColor wrap="wrap">
+              {doing}
+            </Text>
+          )}
+          {used !== undefined && (
+            <Text dimColor wrap="wrap">
+              {S.outTok(fmtCompact(used.out), used.model)}
+            </Text>
+          )}
         </Box>
       )
     }
@@ -579,6 +686,7 @@ export const register: Register = on => {
           {repoLine !== '' && <Text dimColor wrap="wrap">{repoLine}</Text>}
           {statLine !== '' && <Text dimColor wrap="wrap">{statLine}</Text>}
           {tokensText !== undefined && <Text dimColor wrap="wrap">{tokensText}</Text>}
+          {convParts !== '' && <Text dimColor wrap="wrap">{S.convLine(convParts)}</Text>}
           {ctx.tokens === undefined ? (
             <Text dimColor>{S.ctxNoReading}</Text>
           ) : (
@@ -701,39 +809,19 @@ export const register: Register = on => {
         <Box flexDirection="column">
           {rows.length === 0 && <Text dimColor>{S.noSubagents}</Text>}
           <Box flexDirection="column" gap="sm">
-            {rows.map(row => {
-              const used = act.agentOut[row.id]
-              const isLive = row.endedAt === undefined
-              const isBad = row.status === 'failed' || row.status === 'killed'
+            {cols === 1 && rows.map(row => agentTile(row, false))}
+            {cols === 2 &&
+              Array.from({ length: Math.ceil(rows.length / 2) }, (_, i) => {
+                const left = rows[i * 2]
+                const right = rows[i * 2 + 1]
 
-              return (
-                <Box
-                  key={row.id}
-                  flexDirection="column"
-                  borderStyle="round"
-                  borderColor={isLive ? AMBER : isBad ? RED : TRACK}
-                  paddingX={1}
-                >
-                  <Text bold wrap="wrap">
-                    {row.name}
-                  </Text>
-                  <Text dimColor wrap="wrap">
-                    {row.description === '' || row.description === row.name
-                      ? row.type
-                      : `${row.type} · ${row.description}`}
-                  </Text>
-                  <Text color={isLive ? AMBER : isBad ? RED : GREEN} wrap="wrap">
-                    {`${isLive ? `${spin(now)} ` : isBad ? '✗ ' : '✓ '}${fmtElapsed((row.endedAt ?? now) - row.startedAt)}`}
-                    <Text dimColor>{` · ${word(S, row.status)}`}</Text>
-                  </Text>
-                  {used !== undefined && (
-                    <Text dimColor wrap="wrap">
-                      {S.outTok(fmtCompact(used.out), used.model)}
-                    </Text>
-                  )}
-                </Box>
-              )
-            })}
+                return (
+                  <Box key={`agent-row-${i}`} flexDirection="row" gap="sm">
+                    {left !== undefined && agentTile(left, true)}
+                    {right === undefined ? <Box key={`agent-pad-${i}`} width="50%" /> : agentTile(right, true)}
+                  </Box>
+                )
+              })}
           </Box>
         </Box>,
       ),
@@ -757,18 +845,31 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column" gap="sm">
-        <Box justifyContent="flex-end">
+        <Box justifyContent="flex-end" gap="sm">
+          <Button
+            key="settings"
+            label={S.settingsButton}
+            onPress={() => void attempt($, () => update($, settingsOpenAtom, cur => !cur), false)}
+          />
           <Button
             key="lang"
             label={LOCALE_LABEL[loc]}
             onPress={() => void attempt($, () => cycleLang($), undefined)}
           />
         </Box>
-        {art !== null && (
-          <Box flexDirection="column" alignItems="center">
-            {art}
+        {settingsOpen && (
+          <Box flexDirection="column">
+            <Box flexWrap="wrap" gap="sm">
+              {settingKeys.map(key => (
+                <Button key={`set-${key}`} onPress={() => void attempt($, () => cycleOption($, key), undefined)}>
+                  <Text>{`${optLabel(key)}: ${optValue(key)}`}</Text>
+                </Button>
+              ))}
+            </Box>
+            <Text dimColor wrap="wrap">{`/better-claude-dashboard ${COMMAND_HINT}`}</Text>
           </Box>
         )}
+        {art}
         {layout.lifting !== undefined && (
           <Text dimColor wrap="wrap">{S.moving(layout.lifting)}</Text>
         )}
@@ -1259,8 +1360,12 @@ async function refreshUsage($: EngineInterface): Promise<void> {
     ...(project === undefined ? {} : { project }),
     ...(branch === undefined ? {} : { branch }),
   }
-  if (prev.measuredAt !== 0 && sameReading(prev, fresh)) return
-  await update($, usage, () => fresh)
+  const prevFive = prev.rateLimits.find(w => w.kind === 'five_hour')
+  const freshFive = fresh.rateLimits.find(w => w.kind === 'five_hour')
+  const plan = advancePlan(prev.plan, prevFive, freshFive)
+  const next: DashUsage = plan === undefined ? fresh : { ...fresh, plan }
+  if (prev.measuredAt !== 0 && sameReading(prev, next)) return
+  await update($, usage, () => next)
 }
 
 async function readRepo($: EngineInterface): Promise<{ project?: string; branch?: string }> {
@@ -1288,6 +1393,27 @@ async function initLang($: EngineInterface): Promise<void> {
     detectLocale(lang) ??
     'en'
   await update($, langAtom, cur => (isLocale(cur) ? cur : chosen))
+}
+
+async function initSettings($: EngineInterface): Promise<void> {
+  const stored = await attempt($, () => $.store.get(SETTINGS_KEY), undefined)
+  if (stored === undefined) return
+  await update($, settingsAtom, () => toSettings(stored))
+}
+
+async function saveSettings($: EngineInterface, next: DashSettings): Promise<void> {
+  await attempt($, () => update($, settingsAtom, () => next), next)
+  await attempt($, () => $.store.set(SETTINGS_KEY, next), undefined)
+}
+
+async function cycleOption($: EngineInterface, key: SettingKey): Promise<void> {
+  await saveSettings($, cycleSetting(await read($, settingsAtom), key))
+}
+
+function withoutPlan(cur: DashUsage): DashUsage {
+  const { plan: _plan, ...rest } = cur
+
+  return rest
 }
 
 async function cycleLang($: EngineInterface): Promise<void> {

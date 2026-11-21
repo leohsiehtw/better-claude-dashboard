@@ -1,7 +1,7 @@
 {
   "name": "better-claude-dashboard",
-  "version": "0.3.0",
-  "description": "Claude Code dashboard for the desktop app: live activity (running tools, bash commands, background tasks) with stop buttons, a live usage monitor pane with 5-hour and weekly plan limits, context window, cost, tokens and cache hit rate, git branch, permissions and subagents. English, 繁體中文, 简体中文, 日本語, 한국어.",
+  "version": "0.4.0",
+  "description": "Claude Code dashboard for the desktop app: live activity (running tools, bash commands, background tasks) with stop buttons, a live usage monitor pane with 5-hour and weekly plan limits, context window, cost, tokens and cache hit rate, git branch, permissions and subagents, with small animated helpers for busy subagents and a few settings (helpers, grid, token display). English, 繁體中文, 简体中文, 日本語, 한국어.",
   "author": {
     "name": "leohsiehtw"
   },

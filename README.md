@@ -23,19 +23,38 @@ BetterClaudeDashboard is a Claude Code dashboard: a Claude Code plugin and usage
 - **Session**: model, permission mode, effort, turn count, cost, uptime, context bar, auto-compact threshold and the largest context categories.
 - **Git**: the project folder name and the current git branch.
 - **Tokens**: main-thread input and output tokens and the prompt cache hit rate.
+- **This conversation**: your context use as a percentage, plus an approximate share of the 5-hour limit used since the dashboard first saw this session (see Limits).
 - **Context breakdown**: every context category (messages, system tools, MCP tools, system prompt, skills, memory files, agents, auto-compact buffer, free space and deferred tools) with tokens and share of the window, plus the number of MCP tools, memory files, agents and skills.
 - **Turn**: live turn timer, tool calls, edits, errors, last turn duration, session totals.
 - **Permissions**: allow / ask / deny counts, file / shell / other split, top tools.
-- **Subagents**: one card each with name, description, status, elapsed time, output tokens and model.
+- **Subagents**: one card each with name, description, status, elapsed time, output tokens and model. With a pane at least 62 columns wide the cards sit in two columns; narrower, in one. Each running card shows a line for what that subagent is doing now.
 - **Session log**: the last 12 events (tools, permissions, turns, subagents).
 - **Multilingual**: English, 繁體中文, 简体中文, 日本語 and 한국어, switched with a button in the pane.
-- **Animated Claude mascot**: it sleeps and looks around when idle, and while Claude works it rotates through using a laptop, reading, searching, having coffee, pacing, getting ideas and hopping. Drawn as SVG on desktop. An unofficial fan drawing, not an Anthropic asset.
+- **Animated Claude mascot**: it sleeps and looks around when idle, and while Claude works it rotates through using a laptop, reading, searching, having coffee, pacing, getting ideas and hopping. Drawn as SVG on desktop. An unofficial fan drawing, not an Anthropic asset. On desktop, up to four small helpers (a bot, a chick, a blob, a drone) appear under it, one per busy subagent; idle teammates get none.
 - **Reopenable**: the `Usage ▸` button above the prompt brings the pane back after closing it.
 - Works in light and dark mode, text wraps in a narrow pane.
 
 ## Languages
 
 The pane is available in English, 繁體中文, 简体中文, 日本語 and 한국어. The language is picked in this order: your last choice, the Claude Code `language` setting, the `LC_ALL` / `LC_MESSAGES` / `LANG` environment variables, then English. The button at the top of the pane cycles EN → 繁中 → 简中 → 日本語 → 한국어, and the choice is kept across sessions.
+
+## Settings
+
+Three options change how the pane looks. Change them with `/better-claude-dashboard` or with the `⚙` button at the top of the pane (the desktop app has no plugin slash commands, so the button strip does the same):
+
+```
+/better-claude-dashboard show
+/better-claude-dashboard companions on|off
+/better-claude-dashboard grid auto|1|2
+/better-claude-dashboard tokens both|context|plan
+/better-claude-dashboard reset
+```
+
+- `companions`: the helper row under the mascot (default on).
+- `grid`: subagent cards in `1` or `2` columns, or `auto` (two from 62 columns wide; default).
+- `tokens`: what "This conversation" shows: `both`, only `context`, or only `plan` share (default both).
+
+Several can be given in one line (`companions off grid 2`, or `grid=2`). An unknown value changes nothing. The choices are kept across sessions.
 
 ## Install
 
@@ -52,11 +71,11 @@ In the desktop app: click + next to the prompt box, choose Plugins, Add marketpl
 
 ## What the hooks do
 
-All hooks only observe and always pass the event through unchanged: `tool.check` records the allow / ask / deny verdict (it awaits the verdict and returns it as given), `tool.call` counts calls and errors, `turn.start` / `turn.complete` time turns, read subagent output tokens and add up the main thread's tokens, `classic.*` events record permission mode, effort and permission dialogs, `session.*` start the refresh timer (and `session.start` picks the language), and `ui.render` draws the pane and the `Usage ▸` button. About once a minute it runs `git branch --show-current` in the session folder to show the branch. `tool.call` also keeps the list of running calls and the background tasks they start (a shell's `backgroundTaskId`, a Monitor's `taskId`), and `classic.Stop` checks that list against the engine's `background_tasks`. A Stop pressed twice calls `$.turn.abort` for the running turn, or the `TaskStop` tool for a background task or subagent.
+All hooks only observe and always pass the event through unchanged: `tool.check` records the allow / ask / deny verdict (it awaits the verdict and returns it as given), `tool.call` counts calls and errors, `turn.start` / `turn.complete` time turns, read subagent output tokens and add up the main thread's tokens, `classic.*` events record permission mode, effort and permission dialogs, `session.*` start the refresh timer (and `session.start` picks the language), and `ui.render` draws the pane and the `Usage ▸` button. About once a minute it runs `git branch --show-current` in the session folder to show the branch. `tool.call` also keeps the list of running calls and the background tasks they start (a shell's `backgroundTaskId`, a Monitor's `taskId`), and `classic.Stop` checks that list against the engine's `background_tasks`. A Stop pressed twice calls `$.turn.abort` for the running turn, or the `TaskStop` tool for a background task or subagent. `/better-claude-dashboard` takes arguments (see Settings); the choices are saved in the plugin store under the key `settings`. A running command's masked and clipped text is kept in plugin state only while it runs and is not written to any file.
 
 ## Limits
 
-Not exposed by the API, so not shown: per-subagent context size, the classifier's real verdict, a request count (turn count is used instead), and weekly limits per model. "Pending" counts asked calls that have not finished, including the tool's own run time. Token totals count only main-thread turns since the mod loaded. The git branch needs `git` on your PATH. A background task that ends by itself shows as ended once the turn that reports it finishes. Stopping a turn may move a running command to the background instead of ending it; it then appears under background with its own Stop. A stop that a permission rule refuses, or a subagent not running in the background, shows the reason on its row.
+Not exposed by the API, so not shown: per-subagent context size, the classifier's real verdict, a request count (turn count is used instead), and weekly limits per model. "Pending" counts asked calls that have not finished, including the tool's own run time. Token totals count only main-thread turns since the mod loaded. The git branch needs `git` on your PATH. A background task that ends by itself shows as ended once the turn that reports it finishes. Stopping a turn may move a running command to the background instead of ending it; it then appears under background with its own Stop. A stop that a permission rule refuses, or a subagent not running in the background, shows the reason on its row. "This conversation" plan share is approximate: the 5-hour window belongs to the whole account, so other sessions and apps count in it too; the share is shown with a leading ≈, readings come in steps of 0.1%, and the baseline is the first reading the dashboard saw (so usage before that is not counted). It follows the window when it resets.
 
 ## Credits
 

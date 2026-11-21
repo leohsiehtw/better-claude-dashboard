@@ -72,6 +72,18 @@ export type Strings = {
   confirmStop: string
   stopFailed: (why: string) => string
   bgCount: (n: number) => string
+  companionsAlt: (n: number) => string
+  convLine: (parts: string) => string
+  convCtx: (pct: number) => string
+  convPlan: (pct: string) => string
+  settingsButton: string
+  optCompanions: string
+  optGrid: string
+  optTokens: string
+  values: Readonly<Record<string, string>>
+  settingsNow: (summary: string) => string
+  settingsUsage: string
+  settingsBad: (arg: string) => string
   words: Readonly<Record<string, string>>
 }
 
@@ -175,6 +187,18 @@ const en: Strings = {
   confirmStop: 'press again to stop',
   stopFailed: why => `stop failed: ${why}`,
   bgCount: n => `${n} in background`,
+  companionsAlt: n => `${n} helper${n === 1 ? '' : 's'} at work`,
+  convLine: parts => `this conversation · ${parts}`,
+  convCtx: pct => `ctx ${pct}%`,
+  convPlan: pct => `≈+${pct}% of 5h limit since first reading`,
+  settingsButton: '⚙',
+  optCompanions: 'helpers',
+  optGrid: 'grid',
+  optTokens: 'tokens',
+  values: {},
+  settingsNow: summary => `Settings: ${summary}`,
+  settingsUsage: 'Usage: /better-claude-dashboard [show | companions on|off | grid auto|1|2 | tokens both|context|plan | reset]',
+  settingsBad: arg => `Unknown setting: ${arg}`,
   words: {},
 }
 
@@ -243,6 +267,18 @@ const zhTW: Strings = {
   confirmStop: '再按一次以停止',
   stopFailed: why => `停止失敗：${why}`,
   bgCount: n => `背景 ${n} 項`,
+  companionsAlt: n => `${n} 個小幫手工作中`,
+  convLine: parts => `本對話 · ${parts}`,
+  convCtx: pct => `ctx ${pct}%`,
+  convPlan: pct => `≈+${pct}% 5 小時額度（自首次讀數起）`,
+  settingsButton: '⚙',
+  optCompanions: '小幫手',
+  optGrid: '排版',
+  optTokens: '用量顯示',
+  values: { on: '開', off: '關', auto: '自動', both: '兩者', context: '僅上下文', plan: '僅額度' },
+  settingsNow: summary => `設定：${summary}`,
+  settingsUsage: '用法：/better-claude-dashboard [show | companions on|off | grid auto|1|2 | tokens both|context|plan | reset]',
+  settingsBad: arg => `未知的設定：${arg}`,
   words: {
     started: '開始', done: '完成', spawned: '啟動', error: '錯誤', denied: '已拒絕', ask: '詢問', deny: '拒絕',
     aborted: '中斷', refusal: '拒答', failed: '失敗', killed: '已終止', turn: '回合', check: '檢查',
@@ -316,6 +352,18 @@ const zhCN: Strings = {
   confirmStop: '再点一次以停止',
   stopFailed: why => `停止失败：${why}`,
   bgCount: n => `后台 ${n} 项`,
+  companionsAlt: n => `${n} 个小帮手工作中`,
+  convLine: parts => `本对话 · ${parts}`,
+  convCtx: pct => `ctx ${pct}%`,
+  convPlan: pct => `≈+${pct}% 5 小时额度（自首次读数起）`,
+  settingsButton: '⚙',
+  optCompanions: '小帮手',
+  optGrid: '排版',
+  optTokens: '用量显示',
+  values: { on: '开', off: '关', auto: '自动', both: '两者', context: '仅上下文', plan: '仅额度' },
+  settingsNow: summary => `设置：${summary}`,
+  settingsUsage: '用法：/better-claude-dashboard [show | companions on|off | grid auto|1|2 | tokens both|context|plan | reset]',
+  settingsBad: arg => `未知的设置：${arg}`,
   words: {
     started: '开始', done: '完成', spawned: '启动', error: '错误', denied: '已拒绝', ask: '询问', deny: '拒绝',
     aborted: '中断', refusal: '拒答', failed: '失败', killed: '已终止', turn: '轮次', check: '检查',
@@ -389,6 +437,18 @@ const ja: Strings = {
   confirmStop: 'もう一度押すと停止',
   stopFailed: why => `停止失敗: ${why}`,
   bgCount: n => `バックグラウンド ${n} 件`,
+  companionsAlt: n => `作業中のヘルパー ${n} 体`,
+  convLine: parts => `この会話 · ${parts}`,
+  convCtx: pct => `ctx ${pct}%`,
+  convPlan: pct => `≈+${pct}% 5時間枠（初回計測から）`,
+  settingsButton: '⚙',
+  optCompanions: 'ヘルパー',
+  optGrid: 'グリッド',
+  optTokens: 'トークン表示',
+  values: { on: 'オン', off: 'オフ', auto: '自動', both: '両方', context: 'コンテキストのみ', plan: '枠のみ' },
+  settingsNow: summary => `設定: ${summary}`,
+  settingsUsage: '使い方: /better-claude-dashboard [show | companions on|off | grid auto|1|2 | tokens both|context|plan | reset]',
+  settingsBad: arg => `不明な設定: ${arg}`,
   words: {
     started: '開始', done: '完了', spawned: '起動', error: 'エラー', denied: '拒否済み', ask: '確認', deny: '拒否',
     aborted: '中断', refusal: '拒否応答', failed: '失敗', killed: '強制終了', turn: 'ターン', check: 'チェック',
@@ -462,6 +522,18 @@ const ko: Strings = {
   confirmStop: '한 번 더 누르면 중지',
   stopFailed: why => `중지 실패: ${why}`,
   bgCount: n => `백그라운드 ${n}개`,
+  companionsAlt: n => `작업 중인 도우미 ${n}개`,
+  convLine: parts => `이 대화 · ${parts}`,
+  convCtx: pct => `ctx ${pct}%`,
+  convPlan: pct => `≈+${pct}% 5시간 한도 (첫 측정 이후)`,
+  settingsButton: '⚙',
+  optCompanions: '도우미',
+  optGrid: '그리드',
+  optTokens: '토큰 표시',
+  values: { on: '켬', off: '끔', auto: '자동', both: '둘 다', context: '컨텍스트만', plan: '한도만' },
+  settingsNow: summary => `설정: ${summary}`,
+  settingsUsage: '사용법: /better-claude-dashboard [show | companions on|off | grid auto|1|2 | tokens both|context|plan | reset]',
+  settingsBad: arg => `알 수 없는 설정: ${arg}`,
   words: {
     started: '시작', done: '완료', spawned: '생성', error: '오류', denied: '거부됨', ask: '확인', deny: '거부',
     aborted: '중단', refusal: '거절', failed: '실패', killed: '강제 종료', turn: '턴', check: '검사',

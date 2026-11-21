@@ -153,3 +153,81 @@ ${profile ? STORY : ''}
 ${props.css}
 </style><g transform="translate(14,12)"><g class="${mood === 'hop' ? 'hp' : ''}"><g class="b">${body}${props.inside}</g></g></g>${props.above}</svg>`
 }
+
+// ---- helpers: a row of small companions, one per busy subagent ----
+
+export type Companion = 'bot' | 'chick' | 'blob' | 'drone'
+
+export const COMPANIONS: Companion[] = ['bot', 'chick', 'blob', 'drone']
+
+/** Most companions drawn at once; the pane says how many more there are. */
+export const COMPANION_CAP = 4
+
+const GREY = '#8b9099'
+const SLATE = '#5b6270'
+const CYAN_EYE = '#22d3ee'
+const ALERT = '#d63a3a'
+const YELLOW = '#f5c542'
+const GOLD = '#e0a92a'
+const BEAK = '#f08a24'
+const LIME = '#2fb36b'
+const IND = '#4f56d9'
+const ROTOR = '#a5b4fc'
+
+// Each sprite is 9 x 10 units and draws into its own group; inner groups carry the animation so the
+// group's transform attribute (its place in the row) stays untouched.
+const SPRITES: Record<Companion, string> = {
+  bot:
+    `${rect(4, 1, 1, 1, GREY)}${rect(4, 0, 1, 1, ALERT, 'tip')}${rect(1, 2, 7, 5, GREY)}` +
+    `${rect(2, 3, 2, 2, CYAN_EYE)}${rect(5, 3, 2, 2, CYAN_EYE)}${rect(2, 7, 5, 2, SLATE)}` +
+    `${rect(2, 9, 2, 1, SLATE, 'l1')}${rect(5, 9, 2, 1, SLATE, 'l2')}`,
+  chick:
+    `<g class="hop">${rect(2, 3, 6, 6, YELLOW)}${rect(3, 2, 3, 1, YELLOW)}${rect(8, 5, 1, 1, BEAK)}${rect(5, 4, 1, 1, K)}` +
+    `${rect(3, 5, 3, 2, GOLD, 'wg')}${rect(3, 9, 1, 1, BEAK)}${rect(5, 9, 1, 1, BEAK)}</g>`,
+  blob:
+    `<g class="sq">${rect(3, 3, 3, 1, LIME)}${rect(2, 4, 5, 1, LIME)}${rect(1, 5, 7, 4, LIME)}` +
+    `${rect(3, 5, 1, 2, K)}${rect(5, 5, 1, 2, K)}</g>`,
+  drone:
+    `${rect(2, 9, 5, 1, SH, 'sh')}<g class="hv">${rect(0, 2, 9, 1, ROTOR, 'rt')}${rect(4, 3, 1, 1, SLATE)}` +
+    `${rect(2, 4, 5, 2, IND)}${rect(3, 6, 1, 1, SLATE)}${rect(5, 6, 1, 1, SLATE)}</g>`,
+}
+
+// Every duration divides 6 s, so the whole row repeats seamlessly each 6 s story.
+const COMPANION_CSS = `*{animation-delay:calc(var(--t,0s) * -1)!important}
+.row{animation:pace 6s ease-in-out infinite}
+.row .cp:nth-child(2) *{animation-delay:calc(.25s - var(--t,0s))!important}
+.row .cp:nth-child(3) *{animation-delay:calc(.5s - var(--t,0s))!important}
+.row .cp:nth-child(4) *{animation-delay:calc(.75s - var(--t,0s))!important}
+.tip{animation:tip 1.5s steps(1,end) infinite}.l1{animation:lg 1s steps(1,end) infinite}.l2{animation:lg 1s steps(1,end) infinite reverse}
+.hop{animation:hop 1s ease-in-out infinite}.wg{transform-box:fill-box;transform-origin:bottom;animation:wg .5s steps(1,end) infinite}
+.sq{transform-box:fill-box;transform-origin:bottom;animation:sq 1.5s ease-in-out infinite}
+.hv{animation:hv 3s ease-in-out infinite}.rt{transform-box:fill-box;transform-origin:center;animation:rt .5s steps(1,end) infinite}.sh{animation:sh 3s ease-in-out infinite}
+@keyframes pace{0%,100%{transform:translateX(-2px)}50%{transform:translateX(2px)}}
+@keyframes tip{0%{opacity:1}50%{opacity:.2}}
+@keyframes lg{0%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+@keyframes hop{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@keyframes wg{0%{transform:scaleY(1)}50%{transform:scaleY(.5)}}
+@keyframes sq{0%,100%{transform:scale(1.12,.88)}50%{transform:scale(.92,1.1)}}
+@keyframes hv{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+@keyframes rt{0%{transform:scaleX(1)}50%{transform:scaleX(.55)}}
+@keyframes sh{0%,100%{opacity:.5}50%{opacity:1}}`
+
+const SPRITE_W = 9
+const SPRITE_GAP = 4
+
+/** A row of up to COMPANION_CAP small helpers for `count` busy subagents; '' when there is none. */
+export const COMPANIONS_SVG = (count: number, phase = 0): string => {
+  const n = Math.max(0, Math.min(COMPANION_CAP, Math.floor(count)))
+  if (n === 0) return ''
+  const total = n * SPRITE_W + (n - 1) * SPRITE_GAP
+  const x0 = (54 - total) / 2
+  const row = Array.from({ length: n }, (_, i) => {
+    const kind = COMPANIONS[i % COMPANIONS.length] ?? 'bot'
+
+    return `<g class="cp cp-${kind}" transform="translate(${x0 + i * (SPRITE_W + SPRITE_GAP)},1)">${SPRITES[kind]}</g>`
+  }).join('')
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" style="--t:${phase}s" viewBox="0 0 54 12" width="216" height="48" shape-rendering="crispEdges"><style>
+${COMPANION_CSS}
+</style><g class="row">${row}</g></svg>`
+}

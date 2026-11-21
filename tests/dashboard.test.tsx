@@ -1,3 +1,4 @@
+import type { AgentInfo } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
 import { LOCALES, detectLocale, nextLocale, strings } from '../hooks/i18n'
@@ -96,6 +97,9 @@ test('every locale has card titles and unknown codes fall back to English', asyn
   for (const code of LOCALES) {
     const S = strings(code)
     for (const t of [S.session, S.context, S.turn, S.permissions, S.log, S.now, S.stopTurn, S.stopOne, S.confirmStop, S.nothingRunning]) expect(t.length > 0).toBe(true)
+    for (const t of [S.companionsAlt(2), S.convLine('x'), S.convCtx(5), S.convPlan('2.5'), S.settingsButton, S.optCompanions, S.optGrid, S.optTokens, S.settingsNow('x'), S.settingsUsage, S.settingsBad('x')]) {
+      expect(t.length > 0).toBe(true)
+    }
   }
   expect(strings('xx').permissions).toBe('PERMISSIONS')
   expect(nextLocale('ko')).toBe('en')
@@ -184,4 +188,45 @@ test('the engine background list adds unseen tasks and ends missing ones', async
   expect(next.find(t => t.id === 'a1')).toBeUndefined()
   expect(next.find(t => t.id === 'bg1')?.status).toBe('ended')
   expect(next.find(t => t.id === 'bg1')?.endedAt).toBe(50)
+})
+
+const THREE: AgentInfo[] = ['a1', 'a2', 'a3'].map(id => ({ id, name: id, type: 'Explore', description: `task ${id}`, status: 'running' }))
+
+test('subagents draw as a two-column grid with helpers, and the settings turn them off', async ($, on) => {
+  const clock = mock.clock(on, { now: 1_000_000 })
+  mock.store(on)
+  let five = 10
+  on('session.start', () => ({ cwd: 'C:/w' }))
+  on('agent.list', () => ({ value: THREE }))
+  on('session.usage', () => ({
+    value: {
+      startedAt: 0,
+      context: { window: 200_000, tokens: 50_000, percent: 25 },
+      rateLimits: [{ kind: 'five_hour', percentUsed: five, resetsAt: '2030-01-01T05:00:00Z' }],
+    },
+  }))
+  await $.session.start({ cwd: 'C:/w', surface: 'desktop', isInteractive: true })
+  await clock.advance(3_000)
+  five = 12.5
+  await clock.advance(3_000)
+
+  const wide = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 100 }, surface: 'desktop' })
+  expect(await wide.find({ key: 'agent-row-0' })).toBeTruthy()
+  expect((await wide.findAll({ type: 'Svg' })).length).toBe(2)
+  expect(await wide.find({ type: 'Text', text: /this conversation/ })).toBeTruthy()
+  await wide.unmount()
+
+  const narrow = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await narrow.find({ key: 'agent-row-0' })).toBeFalsy()
+  await narrow.unmount()
+
+  await $.command.run({
+    command: 'better-claude-dashboard',
+    args: 'companions off',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: true, columns: 100 },
+  })
+  const off = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 100 }, surface: 'desktop' })
+  expect((await off.findAll({ type: 'Svg' })).length).toBe(1)
+  await off.unmount()
 })

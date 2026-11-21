@@ -1,5 +1,7 @@
 export type DashWindow = { kind: string; percentUsed: number; resetsAt?: string }
 export type DashAutoCompact = { isEnabled: boolean; thresholdTokens?: number }
+/** The five-hour window's share that this conversation used, tracked across window rolls. */
+export type DashPlanBase = { resetsAt?: string; base: number; carried: number }
 export type DashUsage = {
   measuredAt: number
   context: { tokens?: number; window: number; percent?: number }
@@ -17,6 +19,8 @@ export type DashUsage = {
   project?: string
   /** the checked-out git branch, when git answered */
   branch?: string
+  /** baseline of the five-hour window at the first reading, and what earlier windows added since */
+  plan?: DashPlanBase
 }
 export type DashAgent = {
   id: string
@@ -65,6 +69,9 @@ export type DashActivity = {
   /** main loop turns' summed token counts (turn.complete usage), since this mod loaded */
   tokens: { input: number; output: number; cacheRead: number; cacheWrite: number }
 }
+export type DashGrid = 'auto' | '1' | '2'
+export type DashTokenMode = 'both' | 'context' | 'plan'
+export type DashSettings = { companions: boolean; grid: DashGrid; tokens: DashTokenMode }
 /** Card order and which cards are folded, kept across reloads. */
 export type DashLayout = { order: string[]; collapsed: string[]; lifting?: string }
 export type DashLogEntry = { at: number; name: string; text: string; tone: 'info' | 'ok' | 'warn' | 'err' }
@@ -90,6 +97,8 @@ declare module 'claude-code' {
       live: Shaped<DashLive>
       arm: Shaped<DashArm>
       lang: string
+      settings: Shaped<DashSettings>
+      settingsOpen: boolean
     }
   }
 }

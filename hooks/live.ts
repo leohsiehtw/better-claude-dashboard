@@ -1,4 +1,4 @@
-import type { DashLive, DashRun, DashTask } from '../types'
+import type { DashLive, DashPlanBase, DashRun, DashTask, DashWindow } from '../types'
 
 export const CMD_CLIP = 80
 const RUNNING_CAP = 20
@@ -135,4 +135,56 @@ function trimTasks(t: readonly DashTask[]): DashTask[] {
     .slice(0, KEEP_ENDED_TASKS)
 
   return [...live, ...ended]
+}
+
+const ROLL_MS = 60_000
+const round1 = (n: number): number => Math.round(n * 10) / 10
+
+/** True when both reset times parse and are further apart than a minute. */
+function resetsApart(a: string | undefined, b: string | undefined): boolean {
+  if (a === undefined || b === undefined) return false
+  const x = Date.parse(a)
+  const y = Date.parse(b)
+
+  return !Number.isNaN(x) && !Number.isNaN(y) && Math.abs(x - y) > ROLL_MS
+}
+
+function hasRolled(resetsAt: string | undefined, last: number | undefined, next: DashWindow): boolean {
+  if (next.resetsAt !== undefined && resetsAt !== undefined) return resetsApart(resetsAt, next.resetsAt)
+
+  return last !== undefined && next.percentUsed < last
+}
+
+/**
+ * Tracks how much of the five-hour window this conversation has used: the first reading is the
+ * baseline, and what a window added is carried over when the window rolls.
+ */
+export function advancePlan(
+  cur: DashPlanBase | undefined,
+  prev: DashWindow | undefined,
+  next: DashWindow | undefined,
+): DashPlanBase | undefined {
+  if (next === undefined) return cur
+  if (cur === undefined) {
+    return { ...(next.resetsAt === undefined ? {} : { resetsAt: next.resetsAt }), base: next.percentUsed, carried: 0 }
+  }
+  if (!hasRolled(cur.resetsAt, prev?.percentUsed, next)) {
+    return cur.resetsAt === undefined && next.resetsAt !== undefined ? { ...cur, resetsAt: next.resetsAt } : cur
+  }
+  const sameWindow = prev !== undefined && !resetsApart(prev.resetsAt, cur.resetsAt)
+  const last = sameWindow ? prev.percentUsed : cur.base
+
+  return {
+    ...(next.resetsAt === undefined ? {} : { resetsAt: next.resetsAt }),
+    base: 0,
+    carried: round1(cur.carried + Math.max(0, last - cur.base)),
+  }
+}
+
+/** This conversation's share of the five-hour limit, or undefined without a reading. */
+export function sessionShare(plan: DashPlanBase | undefined, five: DashWindow | undefined): number | undefined {
+  if (plan === undefined || five === undefined) return undefined
+  const rolled = hasRolled(plan.resetsAt, plan.base, five)
+
+  return round1(plan.carried + (rolled ? 0 : Math.max(0, five.percentUsed - plan.base)))
 }
