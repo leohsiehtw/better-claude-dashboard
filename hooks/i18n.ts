@@ -60,6 +60,18 @@ export type Strings = {
   moving: (id: string) => string
   mascotAlt: string
   openButton: string
+  now: string
+  nothingRunning: string
+  responding: string
+  runningNow: (n: number) => string
+  background: (n: number) => string
+  inAgent: (name: string) => string
+  stopTurn: string
+  stopAll: (n: number) => string
+  stopOne: string
+  confirmStop: string
+  stopFailed: (why: string) => string
+  bgCount: (n: number) => string
   words: Readonly<Record<string, string>>
 }
 
@@ -151,6 +163,18 @@ const en: Strings = {
   moving: id => `⠿ moving ${id}: press another card's ⠿ to drop it there, the same one to cancel`,
   mascotAlt: 'Mascot',
   openButton: 'Usage ▸',
+  now: 'NOW',
+  nothingRunning: 'Nothing running.',
+  responding: 'Claude is responding',
+  runningNow: n => `running · ${n}`,
+  background: n => `background · ${n}`,
+  inAgent: name => `↳ in ${name}`,
+  stopTurn: '■ Stop turn',
+  stopAll: n => `✕ Stop all (${n})`,
+  stopOne: '✕ Stop',
+  confirmStop: 'press again to stop',
+  stopFailed: why => `stop failed: ${why}`,
+  bgCount: n => `${n} in background`,
   words: {},
 }
 
@@ -207,10 +231,23 @@ const zhTW: Strings = {
   moving: id => `⠿ 正在移動 ${id}：按另一張卡的 ⠿ 放到該處，按同一張取消`,
   mascotAlt: '吉祥物',
   openButton: '用量 ▸',
+  now: '即時動態',
+  nothingRunning: '目前沒有執行中的工作。',
+  responding: 'Claude 回應中',
+  runningNow: n => `執行中 · ${n}`,
+  background: n => `背景 · ${n}`,
+  inAgent: name => `↳ 於 ${name}`,
+  stopTurn: '■ 停止回合',
+  stopAll: n => `✕ 全部停止 (${n})`,
+  stopOne: '✕ 停止',
+  confirmStop: '再按一次以停止',
+  stopFailed: why => `停止失敗：${why}`,
+  bgCount: n => `背景 ${n} 項`,
   words: {
     started: '開始', done: '完成', spawned: '啟動', error: '錯誤', denied: '已拒絕', ask: '詢問', deny: '拒絕',
     aborted: '中斷', refusal: '拒答', failed: '失敗', killed: '已終止', turn: '回合', check: '檢查',
     pending: '等待', running: '執行中', waiting: '等待中', idle: '閒置', completed: '已完成', ended: '已結束',
+    stop:'停止', shell:'shell', monitor:'監看', agent:'子代理', workflow:'工作流程',
   },
 }
 
@@ -267,10 +304,23 @@ const zhCN: Strings = {
   moving: id => `⠿ 正在移动 ${id}：点另一张卡片的 ⠿ 放到该处，点同一张取消`,
   mascotAlt: '吉祥物',
   openButton: '用量 ▸',
+  now: '实时动态',
+  nothingRunning: '当前没有运行中的任务。',
+  responding: 'Claude 正在回复',
+  runningNow: n => `运行中 · ${n}`,
+  background: n => `后台 · ${n}`,
+  inAgent: name => `↳ 在 ${name}`,
+  stopTurn: '■ 停止本轮',
+  stopAll: n => `✕ 全部停止 (${n})`,
+  stopOne: '✕ 停止',
+  confirmStop: '再点一次以停止',
+  stopFailed: why => `停止失败：${why}`,
+  bgCount: n => `后台 ${n} 项`,
   words: {
     started: '开始', done: '完成', spawned: '启动', error: '错误', denied: '已拒绝', ask: '询问', deny: '拒绝',
     aborted: '中断', refusal: '拒答', failed: '失败', killed: '已终止', turn: '轮次', check: '检查',
     pending: '等待', running: '运行中', waiting: '等待中', idle: '空闲', completed: '已完成', ended: '已结束',
+    stop:'停止', shell:'shell', monitor:'监视', agent:'子代理', workflow:'工作流',
   },
 }
 
@@ -327,10 +377,23 @@ const ja: Strings = {
   moving: id => `⠿ ${id} を移動中: 別のカードの ⠿ でそこへ、同じカードでキャンセル`,
   mascotAlt: 'マスコット',
   openButton: '使用量 ▸',
+  now: '実行状況',
+  nothingRunning: '実行中の処理はありません。',
+  responding: 'Claude が応答中',
+  runningNow: n => `実行中 · ${n}`,
+  background: n => `バックグラウンド · ${n}`,
+  inAgent: name => `↳ ${name} 内`,
+  stopTurn: '■ ターンを停止',
+  stopAll: n => `✕ すべて停止 (${n})`,
+  stopOne: '✕ 停止',
+  confirmStop: 'もう一度押すと停止',
+  stopFailed: why => `停止失敗: ${why}`,
+  bgCount: n => `バックグラウンド ${n} 件`,
   words: {
     started: '開始', done: '完了', spawned: '起動', error: 'エラー', denied: '拒否済み', ask: '確認', deny: '拒否',
     aborted: '中断', refusal: '拒否応答', failed: '失敗', killed: '強制終了', turn: 'ターン', check: 'チェック',
     pending: '保留', running: '実行中', waiting: '待機中', idle: 'アイドル', completed: '完了', ended: '終了',
+    stop:'停止', shell:'シェル', monitor:'モニター', agent:'エージェント', workflow:'ワークフロー',
   },
 }
 
@@ -387,10 +450,23 @@ const ko: Strings = {
   moving: id => `⠿ ${id} 이동 중: 다른 카드의 ⠿를 눌러 놓고, 같은 카드를 눌러 취소`,
   mascotAlt: '마스코트',
   openButton: '사용량 ▸',
+  now: '실행 현황',
+  nothingRunning: '실행 중인 작업이 없습니다.',
+  responding: 'Claude 응답 중',
+  runningNow: n => `실행 중 · ${n}`,
+  background: n => `백그라운드 · ${n}`,
+  inAgent: name => `↳ ${name} 안`,
+  stopTurn: '■ 턴 중지',
+  stopAll: n => `✕ 모두 중지 (${n})`,
+  stopOne: '✕ 중지',
+  confirmStop: '한 번 더 누르면 중지',
+  stopFailed: why => `중지 실패: ${why}`,
+  bgCount: n => `백그라운드 ${n}개`,
   words: {
     started: '시작', done: '완료', spawned: '생성', error: '오류', denied: '거부됨', ask: '확인', deny: '거부',
     aborted: '중단', refusal: '거절', failed: '실패', killed: '강제 종료', turn: '턴', check: '검사',
     pending: '대기', running: '실행 중', waiting: '대기 중', idle: '유휴', completed: '완료', ended: '종료',
+    stop:'중지', shell:'셸', monitor:'모니터', agent:'에이전트', workflow:'워크플로',
   },
 }
 

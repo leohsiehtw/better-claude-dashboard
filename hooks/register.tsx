@@ -12,18 +12,36 @@ import type {
 import type {
   DashActivity,
   DashAgent,
+  DashArm,
   DashAutoCompact,
   DashLayout,
+  DashLive,
   DashLogEntry,
+  DashTask,
   DashUsage,
   DashWindow,
 } from '../types'
 import { LOCALE_LABEL, detectLocale, isLocale, lead, nextLocale, strings, toLocale, word } from './i18n'
 import type { Strings } from './i18n'
+import {
+  addTask,
+  bgTaskOf,
+  clip,
+  emptyLive,
+  endRun,
+  endTask,
+  field,
+  nowLabel,
+  reconcileTasks,
+  setNote,
+  startRun,
+  turnEnded,
+  turnStarted,
+} from './live'
 import { MASCOT_SVG, MOOD_MS, moodFor, spin } from './mascot'
 
 const PANE = 'better-claude-dashboard'
-const CARD_IDS = ['session', 'context', 'turn', 'permissions', 'agents', 'log']
+const CARD_IDS = ['now', 'session', 'context', 'turn', 'permissions', 'agents', 'log']
 
 function normalizeOrder(order: string[]): string[] {
   return [...order.filter(id => CARD_IDS.includes(id)), ...CARD_IDS.filter(id => !order.includes(id))]
@@ -40,6 +58,9 @@ const LOG_CAP = 40
 const LOG_SHOWN = 12
 const TOOLS_CAP = 30
 const AGENT_OUT_CAP = 20
+const ARM_MS = 4_000
+const RUNNING_SHOWN = 6
+const NO_ARM: DashArm = { target: '', at: 0 }
 
 const FILE_TOOLS: readonly string[] = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit']
 const SHELL_TOOLS: readonly string[] = ['Bash', 'PowerShell']
@@ -73,10 +94,16 @@ const activity = atom({ plugin: 'better-claude-dashboard', key: 'activity' } as 
   shape: 'activity-2',
 })
 const layoutAtom = atom({ plugin: 'better-claude-dashboard', key: 'layout' } as const, { order: [], collapsed: [] } as DashLayout, {
-  shape: 'layout-2',
+  shape: 'layout-3',
 })
 const eventLog = atom({ plugin: 'better-claude-dashboard', key: 'log' } as const, [], {
   shape: 'log-1',
+})
+const liveAtom = atom({ plugin: 'better-claude-dashboard', key: 'live' } as const, emptyLive(), {
+  shape: 'live-1',
+})
+const armAtom = atom({ plugin: 'better-claude-dashboard', key: 'arm' } as const, NO_ARM, {
+  shape: 'arm-1',
 })
 const langAtom = atom({ plugin: 'better-claude-dashboard', key: 'lang' } as const, '')
 const LANG_KEY = 'lang'
@@ -89,6 +116,7 @@ let breakdownAt = 0
 let flushTimer: Timer | undefined
 let pendingOps: ((a: DashActivity) => void)[] = []
 let pendingLog: DashLogEntry[] = []
+let pendingLive: ((s: DashLive) => void)[] = []
 const askedIds = new Set<string>()
 
 export const register: Register = on => {
@@ -142,9 +170,12 @@ export const register: Register = on => {
       const now = await attempt($, () => $.clock.now(), 0)
       pendingOps = []
       pendingLog = []
+      pendingLive = []
       askedIds.clear()
       await attempt($, () => update($, activity, () => emptyActivity(now)), undefined)
       await attempt($, () => update($, eventLog, () => []), [])
+      await attempt($, () => update($, liveAtom, () => emptyLive()), emptyLive())
+      await attempt($, () => update($, armAtom, () => NO_ARM), NO_ARM)
     }
 
     return next(e)
@@ -159,15 +190,32 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('tool.call', async ($, e, next) => {
-    await attempt($, () => noteCallStart($, e.tool, toolLabel(e.tool, e)), undefined)
-    const ran = await next(e)
-    await attempt($, () => noteCallEnd($, e.tool, e.tool_use_id, ran.isError === true), undefined)
+    const label = toolLabel(e.tool, e)
+    const startedAt = await attempt($, () => noteCallStart($, e.tool, label), 0)
+    if (startedAt > 0) {
+      queueLive($, s =>
+        startRun(s, {
+          id: e.tool_use_id,
+          tool: e.tool,
+          label: nowLabel(e.tool, e, label),
+          startedAt,
+          ...(e.agentId === undefined ? {} : { agentId: e.agentId }),
+        }),
+      )
+    }
+    try {
+      const ran = await next(e)
+      const endedAt = await attempt($, () => noteCallEnd($, e.tool, e.tool_use_id, ran.isError === true), 0)
+      if (ran.deny === undefined && ran.isError !== true) noteResult($, e.tool, e, ran.result, endedAt)
 
-    return ran
+      return ran
+    } finally {
+      queueLive($, s => endRun(s, e.tool_use_id))
+    }
   }).catch(($, e, next) => next(e))
 
   on('turn.start', async ($, e, next) => {
-    if (e.agentId === undefined) await attempt($, () => noteTurnStart($), undefined)
+    if (e.agentId === undefined) await attempt($, () => noteTurnStart($, e.turnId), undefined)
 
     return next(e)
   })
@@ -197,6 +245,18 @@ export const register: Register = on => {
 
   on('classic.Stop', async ($, e, next) => {
     noteMode($, e.permission_mode, e.effort?.level)
+    const listed = e.background_tasks
+    if (listed !== undefined) {
+      const at = await attempt($, () => $.clock.now(), 0)
+      await attempt(
+        $,
+        () =>
+          editLive($, s => {
+            s.tasks = reconcileTasks(s.tasks, listed, at)
+          }),
+        undefined,
+      )
+    }
 
     return next(e)
   })
@@ -258,9 +318,18 @@ export const register: Register = on => {
         : undefined)
     const loc = toLocale(await read($, langAtom))
     const S = strings(loc)
+    const liveNow = await read($, liveAtom)
+    const liveTasks = liveNow.tasks.filter(t => t.endedAt === undefined).length
     const activeText = live.length === 0 ? S.noSubagentsActive : S.subagentsActive(live.length)
 
     if (e.props.placement === 'widget') {
+      const firstRun = liveNow.running[0]
+      const nowGlance = [
+        firstRun === undefined ? '' : `${shortTool(firstRun.tool)} ${clip(firstRun.label, 24)}`.trim(),
+        liveTasks > 0 ? S.bgCount(liveTasks) : '',
+      ]
+        .filter(x => x !== '')
+        .join(' · ')
       const glance = snap.rateLimits
         .filter(w => w.kind === 'five_hour' || w.kind === 'seven_day')
         .map(w => `${w.kind === 'five_hour' ? '5h' : 'wk'} ${w.percentUsed}%`)
@@ -270,6 +339,7 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Text>{glance.length === 0 ? S.glanceWaiting : glance.join(' · ')}</Text>
           <Text dimColor>{activeText}</Text>
+          {nowGlance !== '' && <Text dimColor wrap="wrap">{nowGlance}</Text>}
         </Box>
       )
     }
@@ -318,7 +388,27 @@ export const register: Register = on => {
       .map(([name, n]) => `${shortTool(name)} ${n}`)
       .join(' · ')
     const shownLog = log.slice(-LOG_SHOWN)
+    const arm = await read($, armAtom)
+    const isArmed = (t: string): boolean => arm.target === t && now - arm.at <= ARM_MS
+    const agentItems: DashTask[] = live.map(row => ({
+      id: row.id,
+      kind: 'agent',
+      label: row.description === '' || row.description === row.name ? row.name : `${row.name} · ${row.description}`,
+      startedAt: row.startedAt,
+      status: row.status,
+    }))
+    const liveItems = [...liveNow.tasks.filter(t => t.endedAt === undefined), ...agentItems]
+    const items = [...liveItems, ...liveNow.tasks.filter(t => t.endedAt !== undefined)]
+    const bgLive = liveItems.length
+    const runs = liveNow.running
     const isBusy = turnRunning || live.length > 0
+    const stopButton = (target: string, key: string, idle: string): JSX.Element => (
+      <Button key={key} onPress={() => void attempt($, () => pressStop($, target), undefined)}>
+        <Text color={RED} bold={isArmed(target)}>
+          {isArmed(target) ? `⚠ ${S.confirmStop}` : idle}
+        </Text>
+      </Button>
+    )
     const cats = snap.categories ?? []
     const win = snap.windowTokens ?? ctx.window
     const share = (tokens: number): string => (win > 0 ? `${((tokens / win) * 100).toFixed(1)}%` : '')
@@ -418,6 +508,65 @@ export const register: Register = on => {
       )
     }
     const cards: Record<string, JSX.Element | null> = {
+      now: card(
+        'now',
+        S.now,
+        turnRunning || runs.length > 0 || bgLive > 0 ? AMBER : GREEN,
+        <Text color={turnRunning ? AMBER : TRACK} wrap="wrap">{turnHead}</Text>,
+        <Box flexDirection="column">
+          {runs.length === 0 && (turnRunning || items.length === 0) && (
+            <Text dimColor wrap="wrap">{turnRunning ? S.responding : S.nothingRunning}</Text>
+          )}
+          {runs.length > 0 && <Text dimColor wrap="wrap">{S.runningNow(runs.length)}</Text>}
+          {runs.slice(-RUNNING_SHOWN).map(r => (
+            <Box key={`run-${r.id}`} flexDirection="column">
+              <Text wrap="wrap">
+                <Text color={AMBER}>{`${spin(now)} `}</Text>
+                <Text bold>{shortTool(r.tool)}</Text>
+                <Text dimColor>{` ${fmtElapsed(Math.max(0, now - r.startedAt))}`}</Text>
+              </Text>
+              {r.label !== '' && (
+                <Text dimColor wrap="wrap">{SHELL_TOOLS.includes(r.tool) ? `$ ${r.label}` : r.label}</Text>
+              )}
+              {r.agentId !== undefined && (
+                <Text dimColor wrap="wrap">
+                  {S.inAgent(rows.find(a => a.id === r.agentId)?.name ?? r.agentId.slice(0, 8))}
+                </Text>
+              )}
+            </Box>
+          ))}
+          {runs.length > RUNNING_SHOWN && <Text dimColor>{`+${runs.length - RUNNING_SHOWN}`}</Text>}
+          {items.length > 0 && <Text dimColor wrap="wrap">{S.background(bgLive)}</Text>}
+          {items.map(t => {
+            const isLive = t.endedAt === undefined
+            const isBad = t.status === 'failed' || t.status === 'killed'
+
+            return (
+              <Box key={`bg-${t.kind}-${t.id}`} flexDirection="column">
+                <Box justifyContent="space-between">
+                  <Text color={isLive ? AMBER : isBad ? RED : GREEN} wrap="wrap">
+                    {`${isLive ? spin(now) : isBad ? '✗' : '✓'} ${word(S, t.kind)} ${fmtElapsed((t.endedAt ?? now) - t.startedAt)}`}
+                    <Text dimColor>{` · ${word(S, t.status)}`}</Text>
+                  </Text>
+                  {isLive && stopButton(`task:${t.id}`, `now-stop-${t.id}`, S.stopOne)}
+                </Box>
+                {t.label !== '' && (
+                  <Text dimColor wrap="wrap">{t.kind === 'shell' ? `$ ${t.label}` : t.label}</Text>
+                )}
+                {isLive && liveNow.notes[t.id] !== undefined && (
+                  <Text color={RED} wrap="wrap">{S.stopFailed(liveNow.notes[t.id] ?? '')}</Text>
+                )}
+              </Box>
+            )
+          })}
+          <Box flexWrap="wrap" gap="sm">
+            {liveNow.turnId !== undefined && stopButton('turn', 'now-stop-turn', S.stopTurn)}
+            {bgLive >= 1 &&
+              (liveNow.turnId !== undefined || bgLive >= 2) &&
+              stopButton('all', 'now-stop-all', S.stopAll(bgLive))}
+          </Box>
+        </Box>,
+      ),
       session: card(
         'session',
         S.session,
@@ -652,6 +801,10 @@ export const register: Register = on => {
 function queue($: EngineInterface, op: ((a: DashActivity) => void) | undefined, entry?: DashLogEntry): void {
   if (op !== undefined) pendingOps.push(op)
   if (entry !== undefined) pendingLog.push(entry)
+  schedule($)
+}
+
+function schedule($: EngineInterface): void {
   if (flushTimer !== undefined) return
   flushTimer = $.clock.after(FLUSH_MS, () => {
     flushTimer = undefined
@@ -659,11 +812,32 @@ function queue($: EngineInterface, op: ((a: DashActivity) => void) | undefined, 
   })
 }
 
+function queueLive($: EngineInterface, op: (s: DashLive) => void): void {
+  pendingLive.push(op)
+  schedule($)
+}
+
+async function editLive($: EngineInterface, op: (s: DashLive) => void): Promise<void> {
+  await update($, liveAtom, cur => {
+    const next: DashLive = JSON.parse(JSON.stringify(cur))
+    op(next)
+
+    return next
+  })
+}
+
 async function flush($: EngineInterface): Promise<void> {
   const ops = pendingOps
   const entries = pendingLog
+  const liveOps = pendingLive
   pendingOps = []
   pendingLog = []
+  pendingLive = []
+  if (liveOps.length > 0) {
+    await editLive($, s => {
+      for (const op of liveOps) op(s)
+    })
+  }
   if (ops.length > 0) {
     await update($, activity, cur => {
       const next: DashActivity = JSON.parse(JSON.stringify(cur))
@@ -701,7 +875,7 @@ async function noteCheck($: EngineInterface, id: string | undefined, decision: s
   )
 }
 
-async function noteCallStart($: EngineInterface, tool: string, label: string): Promise<void> {
+async function noteCallStart($: EngineInterface, tool: string, label: string): Promise<number> {
   const at = await $.clock.now()
   const group = FILE_TOOLS.includes(tool) ? 'file' : SHELL_TOOLS.includes(tool) ? 'shell' : 'other'
   const isEdit = EDIT_TOOLS.includes(tool)
@@ -721,6 +895,8 @@ async function noteCallStart($: EngineInterface, tool: string, label: string): P
     // Agent spawns get their own log line from the agent list.
     tool === 'Agent' || tool === 'Task' ? undefined : { at, name: shortTool(tool), text: label, tone: 'info' },
   )
+
+  return at
 }
 
 async function noteCallEnd(
@@ -728,7 +904,7 @@ async function noteCallEnd(
   tool: string,
   id: string | undefined,
   isError: boolean,
-): Promise<void> {
+): Promise<number> {
   if (id !== undefined) askedIds.delete(id)
   const open = askedIds.size
   const at = await $.clock.now()
@@ -743,10 +919,23 @@ async function noteCallEnd(
     },
     isError ? { at, name: shortTool(tool), text: 'error', tone: 'err' } : undefined,
   )
+
+  return at
 }
 
-async function noteTurnStart($: EngineInterface): Promise<void> {
+/** Background tasks a finished call started, and tasks a TaskStop call ended (the model's own too). */
+function noteResult($: EngineInterface, tool: string, input: unknown, result: unknown, at: number): void {
+  const bg = bgTaskOf(tool, input, result)
+  if (bg !== undefined) queueLive($, s => addTask(s, { ...bg, startedAt: at, status: 'running' }))
+  if (tool === 'TaskStop') {
+    const id = field(input, 'task_id') ?? field(input, 'shell_id')
+    if (id !== undefined) queueLive($, s => endTask(s, id, 'killed', at))
+  }
+}
+
+async function noteTurnStart($: EngineInterface, turnId: string): Promise<void> {
   const at = await $.clock.now()
+  queueLive($, s => turnStarted(s, turnId))
   queue(
     $,
     a => {
@@ -765,6 +954,7 @@ async function noteTurnEnd(
   usage: TurnUsage | undefined,
 ): Promise<void> {
   const at = await $.clock.now()
+  queueLive($, s => turnEnded(s, agentId))
   if (agentId !== undefined) {
     if (usage === undefined) return
     queue($, a => {
@@ -843,10 +1033,6 @@ function baseName(p: string): string {
   return parts[parts.length - 1] ?? p
 }
 
-function clip(s: string, n: number): string {
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s
-}
-
 function shortTool(tool: string): string {
   if (tool.startsWith('mcp__')) {
     const parts = tool.split('__')
@@ -859,6 +1045,67 @@ function shortTool(tool: string): string {
 
 function shortModel(model: string): string {
   return model.replace(/^claude-/, '').replace(/-\d{8}$/, '')
+}
+
+// ---- stop controls (a press arms; a second press within ARM_MS acts) ----
+
+async function pressStop($: EngineInterface, target: string): Promise<void> {
+  const at = await $.clock.now()
+  const next = await update($, armAtom, cur => (cur.target === target && at - cur.at <= ARM_MS ? NO_ARM : { target, at }))
+  if (next.target === target) return
+  if (target === 'turn') await stopTurn($)
+  else if (target === 'all') await stopAll($)
+  else if (target.startsWith('task:')) await stopTask($, target.slice(5))
+}
+
+async function stopTurn($: EngineInterface): Promise<void> {
+  const turnId = (await read($, liveAtom)).turnId
+  if (turnId === undefined) return
+  const at = await $.clock.now()
+  try {
+    await $.turn.abort({ turnId })
+    queue($, undefined, { at, name: 'stop', text: 'turn', tone: 'warn' })
+  } catch (error) {
+    logError($, error)
+    queue($, undefined, { at, name: 'stop', text: 'failed', tone: 'err' })
+    await editLive($, s => {
+      if (s.turnId === turnId) delete s.turnId
+    })
+  }
+}
+
+async function stopTask($: EngineInterface, id: string): Promise<void> {
+  const at = await $.clock.now()
+  let why: string | undefined
+  try {
+    const r = await $.tool.call({
+      tool: 'TaskStop',
+      task_id: id,
+      consent: `The user pressed "Stop" on background task ${id} in the better-claude-dashboard pane.`,
+    })
+    why = r.deny ?? (r.isError === true ? (r.text ?? 'error') : undefined)
+  } catch (error) {
+    why = String(error)
+  }
+  if (why === undefined) {
+    await editLive($, s => endTask(s, id, 'killed', at))
+    queue($, undefined, { at, name: 'stop', text: 'killed', tone: 'warn' })
+  } else {
+    const reason = why
+    await editLive($, s => setNote(s, id, clip(reason, 80)))
+    queue($, undefined, { at, name: 'stop', text: 'failed', tone: 'err' })
+  }
+}
+
+async function stopAll($: EngineInterface): Promise<void> {
+  const cur = await read($, liveAtom)
+  const rows = await read($, agents)
+  const ids = [
+    ...cur.tasks.filter(t => t.endedAt === undefined).map(t => t.id),
+    ...rows.filter(row => row.endedAt === undefined).map(row => row.id),
+  ]
+  if (cur.turnId !== undefined) await stopTurn($)
+  for (const id of ids) await attempt($, () => stopTask($, id), undefined)
 }
 
 // ---- polling ----
@@ -876,8 +1123,11 @@ async function tick($: EngineInterface): Promise<void> {
     await attempt($, () => flush($), undefined)
     const act = await read($, activity)
     const shown = await read($, clockNow)
+    const liveNow = await read($, liveAtom)
     const isLive =
       rows.some(row => row.endedAt === undefined) ||
+      liveNow.running.length > 0 ||
+      liveNow.tasks.some(t => t.endedAt === undefined) ||
       (act.turn.startedAt !== undefined && act.turn.endedAt === undefined)
     if (isLive || wasLive || Math.floor(shown / 60_000) !== Math.floor(now / 60_000)) {
       await update($, clockNow, () => now)

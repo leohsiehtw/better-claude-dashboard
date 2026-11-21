@@ -10,7 +10,7 @@
 
 [English](README.md) · 繁體中文 · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-BetterClaudeDashboard 是一個 Claude Code 儀表板（dashboard）：這個 Claude Code plugin 和用量監視器（usage monitor）放在桌面版的側邊面板，不離開 app 就能即時看 token 用量、context window、5 小時與每週限額、權限和 subagent。只觀察事件：不呼叫模型、不耗 token，也不阻擋或改寫工具呼叫。
+BetterClaudeDashboard 是一個 Claude Code 儀表板（dashboard）：這個 Claude Code plugin 和用量監視器（usage monitor）放在桌面版的側邊面板，不離開 app 就能即時看 token 用量、context window、5 小時與每週限額、權限和 subagent。只觀察事件：不呼叫模型、不耗 token，也不阻擋或改寫工具呼叫；只有你連按兩次停止按鈕時才會動作。
 
 ## 吉祥物
 
@@ -18,6 +18,7 @@ BetterClaudeDashboard 是一個 Claude Code 儀表板（dashboard）：這個 Cl
 
 ## 功能
 
+- **即時動態**：Claude 此刻在做什麼：每個執行中的工具呼叫與經過時間、Bash / PowerShell 指令（截短、明顯的金鑰會遮蔽），以及背景的 shell、monitor 與 subagent。停止按鈕可停止整個回合（同 Esc）、單一背景工作或全部；每個停止都要在 4 秒內再按一次才生效。
 - **方案用量**：5 小時與 7 天用量條，附重置倒數。
 - **Session**：模型、權限模式、effort、回合數、費用、運行時間、context 條、自動壓縮門檻、佔用最多的 context 類別。
 - **Git**：專案資料夾名稱與目前的 git branch。
@@ -51,11 +52,11 @@ claude plugin install better-claude-dashboard@local-mods --scope user
 
 ## Hook 做了什麼
 
-所有 hook 都只觀察，並原封不動放行事件：`tool.check` 記錄允許 / 詢問 / 拒絕的判定（先取得判定結果再原樣回傳），`tool.call` 統計呼叫與錯誤，`turn.start` / `turn.complete` 計時回合、讀取 subagent 輸出 token，並加總主執行緒的 token，`classic.*` 事件記錄權限模式、effort 與權限彈窗，`session.*` 啟動更新計時器（`session.start` 也負責選擇語言），`ui.render` 繪製面板和 `Usage ▸` 按鈕。約每分鐘在 session 資料夾執行一次 `git branch --show-current` 來顯示 branch。
+所有 hook 都只觀察，並原封不動放行事件：`tool.check` 記錄允許 / 詢問 / 拒絕的判定（先取得判定結果再原樣回傳），`tool.call` 統計呼叫與錯誤，`turn.start` / `turn.complete` 計時回合、讀取 subagent 輸出 token，並加總主執行緒的 token，`classic.*` 事件記錄權限模式、effort 與權限彈窗，`session.*` 啟動更新計時器（`session.start` 也負責選擇語言），`ui.render` 繪製面板和 `Usage ▸` 按鈕。約每分鐘在 session 資料夾執行一次 `git branch --show-current` 來顯示 branch。 `tool.call` 也記錄執行中的呼叫與它們啟動的背景工作（shell 的 `backgroundTaskId`、Monitor 的 `taskId`），`classic.Stop` 用引擎的 `background_tasks` 核對這份清單。停止按鈕按兩次後，執行中的回合呼叫 `$.turn.abort`，背景工作或 subagent 呼叫 `TaskStop` 工具。
 
 ## 限制
 
-API 拿不到所以不顯示：每個 subagent 的 context 大小、分類器的真正判定、請求數（以回合數代替），以及依模型分開的週限額。「等待」是判為詢問但尚未結束的呼叫數，包含工具本身執行的時間。Token 總計只算 mod 載入之後的主執行緒回合。git branch 需要 PATH 上有 `git`。
+API 拿不到所以不顯示：每個 subagent 的 context 大小、分類器的真正判定、請求數（以回合數代替），以及依模型分開的週限額。「等待」是判為詢問但尚未結束的呼叫數，包含工具本身執行的時間。Token 總計只算 mod 載入之後的主執行緒回合。git branch 需要 PATH 上有 `git`。 自行結束的背景工作，要等回報它的那個回合結束才顯示為已結束。停止回合時，執行中的指令可能被移到背景而不是終止，之後會出現在背景清單並有自己的停止按鈕。被權限規則拒絕的停止，或不在背景執行的 subagent，會在該列顯示原因。
 
 ## 致謝
 

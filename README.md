@@ -10,7 +10,7 @@
 
 English · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-BetterClaudeDashboard is a Claude Code dashboard: a Claude Code plugin and usage monitor that lives in a side pane of the desktop app. It shows live token usage, the context window, 5-hour and weekly limits, permissions and subagents without leaving the app. It only observes events: no model calls, zero tokens, and it never blocks or rewrites tool calls.
+BetterClaudeDashboard is a Claude Code dashboard: a Claude Code plugin and usage monitor that lives in a side pane of the desktop app. It shows live token usage, the context window, 5-hour and weekly limits, permissions and subagents without leaving the app. It observes events (no model calls, zero tokens) and never blocks or rewrites tool calls; it acts only when you press a Stop button twice.
 
 ## Mascot
 
@@ -18,6 +18,7 @@ BetterClaudeDashboard is a Claude Code dashboard: a Claude Code plugin and usage
 
 ## Features
 
+- **Now**: what Claude is doing right now: each running tool call with its elapsed time, the Bash / PowerShell command (clipped, obvious secrets masked), and the background shells, monitors and subagents. Stop buttons end the turn (like Esc), one background task, or all of them; each Stop acts only on a second press within 4 seconds.
 - **Plan limits**: 5-hour and 7-day usage bars with reset countdowns.
 - **Session**: model, permission mode, effort, turn count, cost, uptime, context bar, auto-compact threshold and the largest context categories.
 - **Git**: the project folder name and the current git branch.
@@ -51,11 +52,11 @@ In the desktop app: click + next to the prompt box, choose Plugins, Add marketpl
 
 ## What the hooks do
 
-All hooks only observe and always pass the event through unchanged: `tool.check` records the allow / ask / deny verdict (it awaits the verdict and returns it as given), `tool.call` counts calls and errors, `turn.start` / `turn.complete` time turns, read subagent output tokens and add up the main thread's tokens, `classic.*` events record permission mode, effort and permission dialogs, `session.*` start the refresh timer (and `session.start` picks the language), and `ui.render` draws the pane and the `Usage ▸` button. About once a minute it runs `git branch --show-current` in the session folder to show the branch.
+All hooks only observe and always pass the event through unchanged: `tool.check` records the allow / ask / deny verdict (it awaits the verdict and returns it as given), `tool.call` counts calls and errors, `turn.start` / `turn.complete` time turns, read subagent output tokens and add up the main thread's tokens, `classic.*` events record permission mode, effort and permission dialogs, `session.*` start the refresh timer (and `session.start` picks the language), and `ui.render` draws the pane and the `Usage ▸` button. About once a minute it runs `git branch --show-current` in the session folder to show the branch. `tool.call` also keeps the list of running calls and the background tasks they start (a shell's `backgroundTaskId`, a Monitor's `taskId`), and `classic.Stop` checks that list against the engine's `background_tasks`. A Stop pressed twice calls `$.turn.abort` for the running turn, or the `TaskStop` tool for a background task or subagent.
 
 ## Limits
 
-Not exposed by the API, so not shown: per-subagent context size, the classifier's real verdict, a request count (turn count is used instead), and weekly limits per model. "Pending" counts asked calls that have not finished, including the tool's own run time. Token totals count only main-thread turns since the mod loaded. The git branch needs `git` on your PATH.
+Not exposed by the API, so not shown: per-subagent context size, the classifier's real verdict, a request count (turn count is used instead), and weekly limits per model. "Pending" counts asked calls that have not finished, including the tool's own run time. Token totals count only main-thread turns since the mod loaded. The git branch needs `git` on your PATH. A background task that ends by itself shows as ended once the turn that reports it finishes. Stopping a turn may move a running command to the background instead of ending it; it then appears under background with its own Stop. A stop that a permission rule refuses, or a subagent not running in the background, shows the reason on its row.
 
 ## Credits
 

@@ -69,6 +69,15 @@ export type DashActivity = {
 export type DashLayout = { order: string[]; collapsed: string[]; lifting?: string }
 export type DashLogEntry = { at: number; name: string; text: string; tone: 'info' | 'ok' | 'warn' | 'err' }
 
+/** A tool call that has started and not yet answered. */
+export type DashRun = { id: string; tool: string; label: string; startedAt: number; agentId?: string }
+/** A background task (shell, monitor, workflow...) this mod saw start, or classic.Stop listed. */
+export type DashTask = { id: string; kind: string; label: string; startedAt: number; status: string; endedAt?: number }
+/** What runs now: the main turn's id (for $.turn.abort), running calls, background tasks, stop failures by id. */
+export type DashLive = { turnId?: string; running: DashRun[]; tasks: DashTask[]; notes: Record<string, string> }
+/** Which Stop button awaits its confirming press, and since when. */
+export type DashArm = { target: string; at: number }
+
 declare module 'claude-code' {
   interface PluginState {
     'better-claude-dashboard': {
@@ -78,6 +87,8 @@ declare module 'claude-code' {
       activity: Shaped<DashActivity>
       log: Shaped<DashLogEntry[]>
       layout: Shaped<DashLayout>
+      live: Shaped<DashLive>
+      arm: Shaped<DashArm>
       lang: string
     }
   }
