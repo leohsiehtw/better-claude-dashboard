@@ -190,7 +190,7 @@ test('the engine background list adds unseen tasks and ends missing ones', async
   expect(next.find(t => t.id === 'bg1')?.endedAt).toBe(50)
 })
 
-const THREE: AgentInfo[] = ['a1', 'a2', 'a3'].map(id => ({ id, name: id, type: 'Explore', description: `task ${id}`, status: 'running' }))
+const THREE: AgentInfo[] = ['a1', 'a2', 'a3'].map(id => ({ id, name: id, type: 'Explore', description: `task ${id}`, status: 'running' } as AgentInfo))
 
 test('subagents draw as a two-column grid with helpers, and the settings turn them off', async ($, on) => {
   const clock = mock.clock(on, { now: 1_000_000 })
