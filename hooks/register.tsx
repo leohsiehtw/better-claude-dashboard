@@ -588,7 +588,7 @@ export const register: Register = on => {
           borderStyle="round"
           borderColor={isLive ? AMBER : isBad ? RED : TRACK}
           paddingX={1}
-          {...(isGrid ? { width: '50%' as const, flexShrink: 1, minHeight: GRID_TILE_ROWS } : {})}
+          {...(isGrid ? { width: 0, flexGrow: 1, flexShrink: 1, minHeight: GRID_TILE_ROWS } : {})}
         >
           <Text bold wrap="wrap">
             {row.name}
@@ -817,7 +817,7 @@ export const register: Register = on => {
                 return (
                   <Box key={`agent-row-${i}`} flexDirection="row" gap="sm">
                     {left !== undefined && agentTile(left, true)}
-                    {right === undefined ? <Box key={`agent-pad-${i}`} width="50%" /> : agentTile(right, true)}
+                    {right === undefined ? <Box key={`agent-pad-${i}`} width={0} flexGrow={1} /> : agentTile(right, true)}
                   </Box>
                 )
               })}
