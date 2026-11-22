@@ -11,7 +11,7 @@ const PANE = {
   props: {
     title: 'Usage',
     isFocused: false,
-    bodyColumns: 48,
+    bodyColumns: 36,
     placement: 'dock',
     scroll: { offset: 0, bodyRows: 30 },
     view: {},

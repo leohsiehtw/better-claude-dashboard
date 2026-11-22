@@ -1,6 +1,6 @@
 import type { DashGrid, DashSettings, DashTokenMode } from '../types'
 
-export const GRID_MIN_COLUMNS = 62
+export const GRID_MIN_COLUMNS = 40
 
 export const DEFAULT_SETTINGS: DashSettings = { companions: true, grid: 'auto', tokens: 'both' }
 

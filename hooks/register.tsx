@@ -41,7 +41,7 @@ import {
   turnEnded,
   turnStarted,
 } from './live'
-import { COMPANIONS_SVG, COMPANION_CAP, MASCOT_SVG, MOOD_MS, moodFor, spin } from './mascot'
+import { COMPANIONS_SVG, COMPANION_ROW, MASCOT_SVG, MOOD_MS, moodFor, spin } from './mascot'
 import { DEFAULT_SETTINGS, applyArgs, cycleSetting, gridColumns, summary, toSettings } from './settings'
 import type { SettingKey } from './settings'
 
@@ -513,7 +513,8 @@ export const register: Register = on => {
     ))
     const artSource = MASCOT_SVG(moodFor(now, isBusy), Math.floor((now % MOOD_MS) / 1000))
     const busyAgents = live.filter(row => row.status !== 'idle').length
-    const helpers = settings.companions ? Math.min(busyAgents, COMPANION_CAP) : 0
+    const helpers = settings.companions ? busyAgents : 0
+    const helperRows = Array.from({ length: Math.ceil(helpers / COMPANION_ROW) }, (_, i) => Math.min(COMPANION_ROW, helpers - i * COMPANION_ROW))
     const art =
       e.surface === 'desktop'
         ? (() => {
@@ -522,17 +523,15 @@ export const register: Register = on => {
             return (
               <Box flexDirection="column" alignItems="center">
                 <Svg source={artSource} alt={S.mascotAlt} width={216} height={148} />
-                {helpers > 0 && (
+                {helperRows.map((n, i) => (
                   <Svg
-                    source={COMPANIONS_SVG(helpers, Math.floor((now % 6000) / 1000))}
+                    key={`helpers-${i}`}
+                    source={COMPANIONS_SVG(n, Math.floor((now % 6000) / 1000))}
                     alt={S.companionsAlt(busyAgents)}
                     width={216}
                     height={48}
                   />
-                )}
-                {busyAgents > COMPANION_CAP && helpers > 0 && (
-                  <Text dimColor>{`+${busyAgents - COMPANION_CAP}`}</Text>
-                )}
+                ))}
               </Box>
             )
           })()
@@ -867,6 +866,7 @@ export const register: Register = on => {
               ))}
             </Box>
             <Text dimColor wrap="wrap">{`/better-claude-dashboard ${COMMAND_HINT}`}</Text>
+            <Text dimColor>{`cols ${e.props.bodyColumns} · ${cols}`}</Text>
           </Box>
         )}
         {art}

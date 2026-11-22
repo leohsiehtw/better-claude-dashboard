@@ -160,8 +160,8 @@ export type Companion = 'bot' | 'chick' | 'blob' | 'drone'
 
 export const COMPANIONS: Companion[] = ['bot', 'chick', 'blob', 'drone']
 
-/** Most companions drawn at once; the pane says how many more there are. */
-export const COMPANION_CAP = 4
+/** Most companions in one row; the pane stacks more rows, so there is no overall limit. */
+export const COMPANION_ROW = 4
 
 const GREY = '#8b9099'
 const SLATE = '#5b6270'
@@ -215,9 +215,9 @@ const COMPANION_CSS = `*{animation-delay:calc(var(--t,0s) * -1)!important}
 const SPRITE_W = 9
 const SPRITE_GAP = 4
 
-/** A row of up to COMPANION_CAP small helpers for `count` busy subagents; '' when there is none. */
+/** One row of up to COMPANION_ROW small helpers for `count` busy subagents; '' when there is none. */
 export const COMPANIONS_SVG = (count: number, phase = 0): string => {
-  const n = Math.max(0, Math.min(COMPANION_CAP, Math.floor(count)))
+  const n = Math.max(0, Math.min(COMPANION_ROW, Math.floor(count)))
   if (n === 0) return ''
   const total = n * SPRITE_W + (n - 1) * SPRITE_GAP
   const x0 = (54 - total) / 2

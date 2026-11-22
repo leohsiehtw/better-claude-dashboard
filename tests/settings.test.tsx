@@ -11,7 +11,7 @@ const PANE = {
   props: {
     title: 'Usage',
     isFocused: false,
-    bodyColumns: 48,
+    bodyColumns: 36,
     placement: 'dock',
     scroll: { offset: 0, bodyRows: 30 },
     view: {},
@@ -45,13 +45,13 @@ test('the command line is parsed into a settings change', async () => {
   expect(applyArgs({ companions: false, grid: '2', tokens: 'plan' }, 'reset').settings).toEqual(DEFAULT_SETTINGS)
 })
 
-test('the agent grid is two columns from 62 cells and honours a fixed choice', async () => {
-  expect(gridColumns('auto', 61)).toBe(1)
-  expect(gridColumns('auto', 62)).toBe(2)
+test('the agent grid is two columns from 40 cells and honours a fixed choice', async () => {
+  expect(gridColumns('auto', 39)).toBe(1)
+  expect(gridColumns('auto', 40)).toBe(2)
   expect(gridColumns('1', 200)).toBe(1)
   expect(gridColumns('2', 30)).toBe(2)
   expect(gridColumns('auto', 0, 100)).toBe(2)
-  expect(gridColumns('auto', 0, 40)).toBe(1)
+  expect(gridColumns('auto', 0, 39)).toBe(1)
   expect(gridColumns('auto', 0)).toBe(1)
 })
 
