@@ -2,7 +2,7 @@ import type { CommandRunInput, CommandRunResult } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
 import { advancePlan, sessionShare } from '../hooks/live'
-import { DEFAULT_SETTINGS, applyArgs, gridColumns, toSettings } from '../hooks/settings'
+import { DEFAULT_SETTINGS, applyArgs, cardRows, gridColumns, toSettings } from '../hooks/settings'
 
 const PANE = {
   plugin: 'better-claude-dashboard',
@@ -104,4 +104,13 @@ test('the settings strip cycles an option on the desktop pane', async ($, on) =>
   await ui.press({ plugin: 'better-claude-dashboard', key: 'set-grid' })
   expect(await ui.find({ type: 'Text', text: /grid: 1$/ })).toBeTruthy()
   await ui.unmount()
+})
+
+test('cards pair up two to a row and the agents card stands alone', () => {
+  expect(cardRows(['now', 'session', 'context', 'agents', 'turn', 'log'])).toEqual([
+    ['now', 'session'],
+    ['context'],
+    ['agents'],
+    ['turn', 'log'],
+  ])
 })

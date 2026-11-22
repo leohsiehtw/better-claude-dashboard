@@ -42,7 +42,7 @@ import {
   turnStarted,
 } from './live'
 import { COMPANIONS_SVG, COMPANION_ROW, MASCOT_SVG, MOOD_MS, moodFor, spin } from './mascot'
-import { DEFAULT_SETTINGS, applyArgs, cycleSetting, gridColumns, summary, toSettings } from './settings'
+import { DEFAULT_SETTINGS, applyArgs, cardRows, cycleSetting, gridColumns, summary, toSettings } from './settings'
 import type { SettingKey } from './settings'
 
 const PANE = 'better-claude-dashboard'
@@ -873,7 +873,17 @@ export const register: Register = on => {
         {layout.lifting !== undefined && (
           <Text dimColor wrap="wrap">{S.moving(layout.lifting)}</Text>
         )}
-        {order.map(id => cards[id] ?? null)}
+        {cols === 1
+          ? order.map(id => cards[id] ?? null)
+          : cardRows(order).map(ids => (
+              <Box key={`card-row-${ids.join('-')}`} flexDirection="row" gap="sm">
+                {ids.map(id => (
+                  <Box key={id} flexDirection="column" width={0} flexGrow={1} flexShrink={1}>
+                    {cards[id] ?? null}
+                  </Box>
+                ))}
+              </Box>
+            ))}
       </Box>
     )
   })
