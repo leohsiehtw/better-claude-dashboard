@@ -550,7 +550,7 @@ export const register: Register = on => {
       const at = order.indexOf(id)
 
       return (
-        <Box key={id} flexDirection="column" borderStyle="round" borderColor={color} paddingX={1}>
+        <Box key={id} flexDirection="column" flexGrow={1} borderStyle="round" borderColor={color} paddingX={1}>
           <Box justifyContent="space-between">
             <Button key={`${id}-fold`} onPress={() => toggleCard(id)}>
               <Text bold color={color}>{`${isFolded ? '▸' : '▾'} ${title}`}</Text>
