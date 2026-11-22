@@ -211,13 +211,13 @@ test('subagents draw as a two-column grid with helpers, and the settings turn th
   await clock.advance(3_000)
 
   const wide = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 100 }, surface: 'desktop' })
-  expect(await wide.find({ key: 'agent-row-0' })).toBeTruthy()
+  expect(await wide.find({ key: 'card-row-now-session' })).toBeTruthy()
   expect((await wide.findAll({ type: 'Svg' })).length).toBe(2)
   expect(await wide.find({ type: 'Text', text: /this conversation/ })).toBeTruthy()
   await wide.unmount()
 
   const narrow = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect(await narrow.find({ key: 'agent-row-0' })).toBeFalsy()
+  expect(await narrow.find({ key: 'card-row-now-session' })).toBeFalsy()
   await narrow.unmount()
 
   await $.command.run({

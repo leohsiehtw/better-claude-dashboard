@@ -78,15 +78,12 @@ export function gridColumns(grid: DashGrid, bodyColumns: number, viewportColumns
   return width >= GRID_MIN_COLUMNS ? 2 : 1
 }
 
-/** Splits the card order into rows of two; the agents card, which has its own grid, takes a row alone. */
+/** Splits the card order into rows of two. */
 export function cardRows(order: readonly string[]): string[][] {
   const rows: string[][] = []
   let open: string[] | undefined
   for (const id of order) {
-    if (id === 'agents') {
-      open = undefined
-      rows.push([id])
-    } else if (open !== undefined && open.length < 2) {
+    if (open !== undefined && open.length < 2) {
       open.push(id)
     } else {
       open = [id]

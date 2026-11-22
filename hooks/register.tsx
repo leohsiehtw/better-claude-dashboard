@@ -66,7 +66,6 @@ const AGENT_OUT_CAP = 20
 const ARM_MS = 4_000
 const RUNNING_SHOWN = 6
 const NO_ARM: DashArm = { target: '', at: 0 }
-const GRID_TILE_ROWS = 8
 const DOING_CLIP = 28
 const COMMAND_HINT = '[show | companions on|off | grid auto|1|2 | tokens both|context|plan | reset]'
 
@@ -575,7 +574,7 @@ export const register: Register = on => {
 
       return r === undefined ? undefined : `${spin(now)} ${shortTool(r.tool)} ${clip(r.label, DOING_CLIP)}`
     }
-    const agentTile = (row: DashAgent, isGrid: boolean): JSX.Element => {
+    const agentTile = (row: DashAgent): JSX.Element => {
       const used = act.agentOut[row.id]
       const isLive = row.endedAt === undefined
       const isBad = row.status === 'failed' || row.status === 'killed'
@@ -588,7 +587,6 @@ export const register: Register = on => {
           borderStyle="round"
           borderColor={isLive ? AMBER : isBad ? RED : TRACK}
           paddingX={1}
-          {...(isGrid ? { width: 0, flexGrow: 1, flexShrink: 1, minHeight: GRID_TILE_ROWS } : {})}
         >
           <Text bold wrap="wrap">
             {row.name}
@@ -808,19 +806,7 @@ export const register: Register = on => {
         <Box flexDirection="column">
           {rows.length === 0 && <Text dimColor>{S.noSubagents}</Text>}
           <Box flexDirection="column" gap="sm">
-            {cols === 1 && rows.map(row => agentTile(row, false))}
-            {cols === 2 &&
-              Array.from({ length: Math.ceil(rows.length / 2) }, (_, i) => {
-                const left = rows[i * 2]
-                const right = rows[i * 2 + 1]
-
-                return (
-                  <Box key={`agent-row-${i}`} flexDirection="row" gap="sm">
-                    {left !== undefined && agentTile(left, true)}
-                    {right === undefined ? <Box key={`agent-pad-${i}`} width={0} flexGrow={1} /> : agentTile(right, true)}
-                  </Box>
-                )
-              })}
+            {rows.map(row => agentTile(row))}
           </Box>
         </Box>,
       ),

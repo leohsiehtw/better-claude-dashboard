@@ -106,11 +106,10 @@ test('the settings strip cycles an option on the desktop pane', async ($, on) =>
   await ui.unmount()
 })
 
-test('cards pair up two to a row and the agents card stands alone', () => {
+test('cards pair up two to a row', () => {
   expect(cardRows(['now', 'session', 'context', 'agents', 'turn', 'log'])).toEqual([
     ['now', 'session'],
-    ['context'],
-    ['agents'],
+    ['context', 'agents'],
     ['turn', 'log'],
   ])
 })
