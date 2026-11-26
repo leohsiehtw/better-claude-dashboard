@@ -45,13 +45,13 @@ test('the command line is parsed into a settings change', async () => {
   expect(applyArgs({ companions: false, grid: '2', tokens: 'plan' }, 'reset').settings).toEqual(DEFAULT_SETTINGS)
 })
 
-test('the agent grid is two columns from 40 cells and honours a fixed choice', async () => {
-  expect(gridColumns('auto', 39)).toBe(1)
-  expect(gridColumns('auto', 40)).toBe(2)
+test('the agent grid is two columns from 64 cells and honours a fixed choice', async () => {
+  expect(gridColumns('auto', 63)).toBe(1)
+  expect(gridColumns('auto', 64)).toBe(2)
   expect(gridColumns('1', 200)).toBe(1)
   expect(gridColumns('2', 30)).toBe(2)
   expect(gridColumns('auto', 0, 100)).toBe(2)
-  expect(gridColumns('auto', 0, 39)).toBe(1)
+  expect(gridColumns('auto', 0, 63)).toBe(1)
   expect(gridColumns('auto', 0)).toBe(1)
 })
 

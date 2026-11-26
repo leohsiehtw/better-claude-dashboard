@@ -27,7 +27,7 @@ BetterClaudeDashboard 是一个 Claude Code 仪表盘（dashboard）：这个 Cl
 - **上下文（context 分类）**：消息、系统工具、MCP 工具、系统提示、Skills、记忆文件、自定义代理、自动压缩缓冲、可用空间与延迟加载工具，各显示 token 数与占窗口的比例，另列出 MCP 工具、记忆文件、自定义代理和 Skills 的数量。
 - **Turn**：本轮实时计时、工具调用数、编辑数、错误数、上一轮耗时、整个 session 累计。
 - **Permissions**：允许 / 询问 / 拒绝次数、文件 / shell / 其他分类、前几名工具。
-- **Subagents**：每个一张卡片，显示名称、说明、状态、已用时间、输出 token 与模型。面板宽度至少 40 列时，卡片分成两列，较窄则一列。运行中的卡片会多一行，显示该 subagent 当前在做什么。
+- **Subagents**：每个一张卡片，显示名称、说明、状态、已用时间、输出 token 与模型。面板宽度至少 64 列时，卡片分成两列，较窄则一列。运行中的卡片会多一行，显示该 subagent 当前在做什么。
 - **Session log**：最近 12 条事件（工具、权限、轮次、subagent）。
 - **多语言**：English、繁體中文、简体中文、日本語、한국어，用面板里的按钮切换。
 - **会动的 Claude 吉祥物**：空闲时睡觉、东张西望，Claude 工作时轮流表演用笔记本电脑、看书、搜索、喝咖啡、踱步、灵光一闪和跳跃。桌面版用 SVG 绘制。这是非官方的同人绘制，不是 Anthropic 的素材。在桌面版，吉祥物下方还会出现小帮手（机器人、小鸡、史莱姆、无人机），每个忙碌中的 subagent 一只；空闲的 teammate 没有。
@@ -51,7 +51,7 @@ BetterClaudeDashboard 是一个 Claude Code 仪表盘（dashboard）：这个 Cl
 ```
 
 - `companions`：吉祥物下方的小帮手行（默认开）。
-- `grid`：subagent 卡片分 `1` 或 `2` 列，或 `auto`（宽度 40 列起为两列；默认）。
+- `grid`：subagent 卡片分 `1` 或 `2` 列，或 `auto`（宽度 64 列起为两列；默认）。
 - `tokens`：“本对话”显示的内容：`both`、只有 `context`，或只有 `plan` 额度（默认 both）。
 
 一行可同时给多个（`companions off grid 2`，或 `grid=2`）。不认识的值不会改动任何设置。选择会跨 session 保留。

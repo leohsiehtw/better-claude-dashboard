@@ -27,7 +27,7 @@ BetterClaudeDashboard is a Claude Code dashboard: a Claude Code plugin and usage
 - **Context breakdown**: every context category (messages, system tools, MCP tools, system prompt, skills, memory files, agents, auto-compact buffer, free space and deferred tools) with tokens and share of the window, plus the number of MCP tools, memory files, agents and skills.
 - **Turn**: live turn timer, tool calls, edits, errors, last turn duration, session totals.
 - **Permissions**: allow / ask / deny counts, file / shell / other split, top tools.
-- **Subagents**: one card each with name, description, status, elapsed time, output tokens and model. With a pane at least 40 columns wide the cards sit in two columns; narrower, in one. Each running card shows a line for what that subagent is doing now.
+- **Subagents**: one card each with name, description, status, elapsed time, output tokens and model. With a pane at least 64 columns wide the cards sit in two columns; narrower, in one. Each running card shows a line for what that subagent is doing now.
 - **Session log**: the last 12 events (tools, permissions, turns, subagents).
 - **Multilingual**: English, 繁體中文, 简体中文, 日本語 and 한국어, switched with a button in the pane.
 - **Animated Claude mascot**: it sleeps and looks around when idle, and while Claude works it rotates through using a laptop, reading, searching, having coffee, pacing, getting ideas and hopping. Drawn as SVG on desktop. An unofficial fan drawing, not an Anthropic asset. On desktop, small helpers (a bot, a chick, a blob, a drone) appear under it, one per busy subagent; idle teammates get none.
@@ -51,7 +51,7 @@ Three options change how the pane looks. Change them with `/better-claude-dashbo
 ```
 
 - `companions`: the helper row under the mascot (default on).
-- `grid`: subagent cards in `1` or `2` columns, or `auto` (two from 40 columns wide; default).
+- `grid`: subagent cards in `1` or `2` columns, or `auto` (two from 64 columns wide; default).
 - `tokens`: what "This conversation" shows: `both`, only `context`, or only `plan` share (default both).
 
 Several can be given in one line (`companions off grid 2`, or `grid=2`). An unknown value changes nothing. The choices are kept across sessions.
